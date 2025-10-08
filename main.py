@@ -1,63 +1,65 @@
-# main.py
+# main.py (Versión con UI y para registrar alumnos)
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import create_engine, text
-from dotenv import load_dotenv
+from pydantic import BaseModel
 
-# Carga las variables de un archivo .env (útil para pruebas locales)
-load_dotenv()
+# --- Modelo de Datos ---
+# Esto ayuda a FastAPI a validar que los datos que llegan son correctos
+class Alumno(BaseModel):
+    nombre: str
+    apellidos: str
+    boleta: str
 
-# --- Conexión a la Base de Datos ---
-# Lee la URL de conexión desde las variables de entorno del sistema.
-# Render pondrá aquí la variable que configuraste.
+# --- Configuración ---
 DATABASE_URL = os.getenv("DATABASE_URL")
-
-# Si no encuentra la variable, detiene la aplicación para evitar errores.
 if not DATABASE_URL:
     raise ValueError("No se encontró la variable de entorno DATABASE_URL")
 
-# Crea el "motor" que conecta SQLAlchemy con tu base de datos PostgreSQL.
 try:
-    engine = create_engine(DATABASE_URL)
+    corrected_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://")
+    engine = create_engine(corrected_url)
 except Exception as e:
     print(f"Error al crear el motor de la base de datos: {e}")
-    # En un caso real, podrías manejar esto de forma más elegante.
-    # Para la práctica, imprimir el error es suficiente.
+
+app = FastAPI(title="API de Registro de Alumnos")
+
+# --- Servir Archivos Estáticos (Frontend) ---
+# Esto le dice a FastAPI que sirva cualquier archivo que esté en la carpeta 'static'
+app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="static")
 
 
-# --- Creación de la Aplicación FastAPI ---
-app = FastAPI(
-    title="API de Lista de Tareas",
-    description="Proyecto para la Práctica 3.1 de Bases de Datos - ESCOM"
-)
-
-
-# --- Endpoints (las URLs de tu API) ---
+# --- Endpoints de la API ---
 
 @app.get("/")
-def read_root():
-    """Endpoint principal de bienvenida."""
-    return {"message": "API para la Práctica 3.1 de Bases de Datos. Accede a /tasks para ver las tareas."}
+def read_root(request: Request):
+    """Muestra la página principal (el archivo index.html)"""
+    return templates.TemplateResponse("index.html", {"request": request})
 
-
-@app.get("/tasks")
-def get_tasks():
-    """Obtiene y devuelve todas las tareas de la base de datos."""
+@app.get("/alumnos")
+def get_alumnos():
+    """Obtiene la lista de todos los alumnos de la base de datos."""
     try:
         with engine.connect() as connection:
-            # Ejecuta una consulta SQL para seleccionar todo de la tabla 'tasks'.
-            result = connection.execute(text("SELECT id, title, is_completed FROM tasks ORDER BY id;"))
-            
-            # Convierte los resultados en una lista de diccionarios para que sea un JSON válido.
-            tasks = [{"id": row[0], "title": row[1], "is_completed": row[2]} for row in result.fetchall()]
-            
-            return tasks
+            result = connection.execute(text("SELECT nombre, apellidos, boleta FROM alumnos ORDER BY id;"))
+            alumnos = [{"nombre": row[0], "apellidos": row[1], "boleta": row[2]} for row in result.fetchall()]
+            return alumnos
     except Exception as e:
-        # Si algo sale mal con la base de datos, devuelve un error claro.
-        raise HTTPException(status_code=500, detail=f"Error al conectar con la base de datos: {e}")
+        raise HTTPException(status_code=500, detail=f"Error al obtener alumnos: {e}")
 
-
-# NOTA: Para cumplir con el objetivo principal (conectar y desplegar),
-# este código solo implementa la lectura (GET). Para un proyecto más completo,
-# añadirías más endpoints para crear (POST), actualizar (PUT) y eliminar (DELETE) tareas.
+@app.post("/alumnos")
+def add_alumno(alumno: Alumno):
+    """Añade un nuevo alumno a la base de datos."""
+    try:
+        with engine.connect() as connection:
+            # Usamos parámetros para evitar inyección SQL
+            query = text("INSERT INTO alumnos (nombre, apellidos, boleta) VALUES (:nombre, :apellidos, :boleta)")
+            connection.execute(query, {"nombre": alumno.nombre, "apellidos": alumno.apellidos, "boleta": alumno.boleta})
+            connection.commit() # Importante: commit para guardar los cambios
+            return {"message": "Alumno añadido con éxito"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al añadir alumno: {e}")

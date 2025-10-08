@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Alumnos - Práctica 3.1</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: auto; padding: 20px; background-color: #f4f4f9; }
+        h1, h2 { color: #333; }
+        form { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        input { width: 95%; padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; border: 1px solid #ddd; text-align: left; }
+        th { background-color: #007bff; color: white; }
+    </style>
+</head>
+<body>
+
+    <h1>Registro de Alumnos</h1>
+    <form id="alumnoForm">
+        <label for="nombre">Nombre:</label>
+        <input type="text" id="nombre" name="nombre" required>
+
+        <label for="apellidos">Apellidos:</label>
+        <input type="text" id="apellidos" name="apellidos" required>
+
+        <label for="boleta">Número de Boleta:</label>
+        <input type="text" id="boleta" name="boleta" required>
+
+        <button type="submit">Registrar Alumno</button>
+    </form>
+    
+    <p id="mensaje"></p>
+
+    <h2>Alumnos Registrados</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Nombre</th>
+                <th>Apellidos</th>
+                <th>Boleta</th>
+            </tr>
+        </thead>
+        <tbody id="alumnosLista">
+            </tbody>
+    </table>
+
+<script>
+    // Función para cargar y mostrar los alumnos
+    async function cargarAlumnos() {
+        const response = await fetch('/alumnos');
+        const alumnos = await response.json();
+        const lista = document.getElementById('alumnosLista');
+        lista.innerHTML = ''; // Limpiar la lista
+        alumnos.forEach(alumno => {
+            const fila = `<tr>
+                            <td>${alumno.nombre}</td>
+                            <td>${alumno.apellidos}</td>
+                            <td>${alumno.boleta}</td>
+                          </tr>`;
+            lista.innerHTML += fila;
+        });
+    }
+
+    // Manejar el envío del formulario
+    document.getElementById('alumnoForm').addEventListener('submit', async (event) => {
+        event.preventDefault(); // Evitar que la página se recargue
+        
+        const nombre = document.getElementById('nombre').value;
+        const apellidos = document.getElementById('apellidos').value;
+        const boleta = document.getElementById('boleta').value;
+        const mensajeEl = document.getElementById('mensaje');
+
+        const response = await fetch('/alumnos', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ nombre, apellidos, boleta })
+        });
+
+        if (response.ok) {
+            mensajeEl.textContent = '¡Alumno registrado con éxito!';
+            mensajeEl.style.color = 'green';
+            document.getElementById('alumnoForm').reset(); // Limpiar formulario
+            cargarAlumnos(); // Recargar la lista
+        } else {
+            const error = await response.json();
+            mensajeEl.textContent = 'Error: ' + error.detail;
+            mensajeEl.style.color = 'red';
+        }
+    });
+
+    // Cargar los alumnos cuando la página se inicie
+    window.onload = cargarAlumnos;
+</script>
+
+</body>
+</html>
